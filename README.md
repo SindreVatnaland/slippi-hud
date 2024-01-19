@@ -16,7 +16,8 @@ Welcome to Slippi-HUD, a nodecg package that can be used to power all kinds of s
 - `nodecg install SSBDoppler/slippi-hud`
 - `nodecg defaultconfig slippi-hud`
 - `cd ..`
-- `npm run electron`
+- `npm i`
+- `npm run dev`
 
 ### Build
 

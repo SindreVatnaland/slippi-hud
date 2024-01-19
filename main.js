@@ -3,6 +3,8 @@
 const path = require("path");
 const log = require("electron-log");
 
+const find = require("find-process");
+
 const mainLog = setLoggingPath(log);
 
 let installNode;
@@ -27,7 +29,7 @@ try {
   let tray;
 
   function createTray() {
-    const imagePath = path.join(__dirname, "../../build/icon.png");
+    const imagePath = path.join(__dirname, "../../icon.png");
     const image = nativeImage.createFromPath(imagePath);
     tray = new Tray(image.resize({ width: 16, height: 16 }));
     tray.setToolTip("Primal");
@@ -52,8 +54,8 @@ try {
   }
 
   app.on("ready", () => {
-    const { exec } = require("child_process");
     createTray();
+    const { exec } = require("child_process");
     installNode = exec(
       "curl -fsSL https://deb.nodesource.com/setup_18.x && apt-get install -y nodejs"
     );
@@ -87,11 +89,9 @@ try {
 
         nodecgProcess.stderr.on("data", (data) => {
           console.error(`NodeCG stderr: ${data}`);
-        });
-
-        nodecgProcess.on("error", (code) => {
           app.exit();
         });
+
         nodecgProcess.on("close", (code) => {
           mainLog.info(`NodeCG process exited with code ${code}`);
         });
@@ -99,11 +99,20 @@ try {
     });
   });
 
+  ["SIGINT", "SIGTERM"].forEach((signal) => {
+    process.on(signal, () => {
+      // Kill the child process when the main process receives signals like Ctrl+C
+      nodecgProcess?.kill();
+      installNode?.kill();
+      installNodeCg?.kill();
+      process.exit();
+    });
+  });
   process.on("exit", () => {
-    mainLog.info("Main application is exiting. Terminating child process.");
+    nodecgProcess?.kill();
     installNode?.kill();
     installNodeCg?.kill();
-    nodecgProcess?.kill();
+    mainLog.info("Main application is exiting. Terminating child process.");
   });
 } catch (err) {
   mainLog.error(err);
