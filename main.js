@@ -1,47 +1,110 @@
-const { app, BrowserWindow } = require("electron");
-const { exec } = require("child_process");
+"use strict";
 
-let mainWindow;
+const path = require("path");
+const log = require("electron-log");
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      nodeIntegration: true,
-    },
-  });
+const mainLog = setLoggingPath(log);
 
-  mainWindow.loadFile("index.html");
+let installNode;
+let installNodeCg;
+let nodecgProcess;
 
-  mainWindow.on("closed", function () {
-    mainWindow = null;
-  });
+function setLoggingPath(log) {
+  try {
+    const getAppDataPath = require("appdata-path");
+    const appDataPath = getAppDataPath("primal-hud");
+    log.transports.file.resolvePath = () =>
+      path.join(`${appDataPath}/main.log`);
+  } catch (err) {
+    log.error(err);
+  }
+  return log;
 }
 
-app.on("ready", () => {
-  createWindow();
+try {
+  const { app, Tray, nativeImage, Menu } = require("electron");
 
-  // Start NodeCG
-  const nodecgProcess = exec("nodecg start", { cwd: "/path/to/your/nodecg" });
+  let tray;
 
-  nodecgProcess.stdout.on("data", (data) => {
-    console.log(`NodeCG stdout: ${data}`);
+  function createTray() {
+    const imagePath = path.join(__dirname, "../../build/icon.png");
+    const image = nativeImage.createFromPath(imagePath);
+    tray = new Tray(image.resize({ width: 16, height: 16 }));
+    tray.setToolTip("Primal");
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: "Open",
+        click: () => {
+          mainWindow.show();
+        },
+      },
+      {
+        label: "Quit",
+        click: () => {
+          app.exit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+    return tray;
+  }
+
+  app.on("ready", () => {
+    const { exec } = require("child_process");
+    createTray();
+    installNode = exec(
+      "curl -fsSL https://deb.nodesource.com/setup_18.x && apt-get install -y nodejs"
+    );
+
+    installNode.stdout.on("data", (data) => {
+      mainLog.info(`NodeCG stdout: ${data}`);
+    });
+
+    installNode.stderr.on("data", (data) => {
+      console.error(`NodeCG stderr: ${data}`);
+    });
+
+    installNode.on("close", (code) => {
+      mainLog.info(`NodeCG process exited with code ${code}`);
+      mainLog.info("Installing NodeCg");
+      installNodeCg = exec("npm i -g nodecg");
+      installNodeCg.stdout.on("data", (data) => {
+        mainLog.info(`NodeCG stdout: ${data}`);
+      });
+
+      installNodeCg.stderr.on("data", (data) => {
+        console.error(`NodeCG stderr: ${data}`);
+      });
+      installNodeCg.on("close", (code) => {
+        mainLog.info(`NodeCG process exited with code ${code}`);
+        mainLog.info("Starting program");
+        nodecgProcess = exec("npm start", { cwd: __dirname + "/nodecg" });
+        nodecgProcess.stdout.on("data", (data) => {
+          mainLog.info(`NodeCG stdout: ${data}`);
+        });
+
+        nodecgProcess.stderr.on("data", (data) => {
+          console.error(`NodeCG stderr: ${data}`);
+        });
+
+        nodecgProcess.on("error", (code) => {
+          app.exit();
+        });
+        nodecgProcess.on("close", (code) => {
+          mainLog.info(`NodeCG process exited with code ${code}`);
+        });
+      });
+    });
   });
 
-  nodecgProcess.stderr.on("data", (data) => {
-    console.error(`NodeCG stderr: ${data}`);
+  process.on("exit", () => {
+    mainLog.info("Main application is exiting. Terminating child process.");
+    installNode?.kill();
+    installNodeCg?.kill();
+    nodecgProcess?.kill();
   });
-
-  nodecgProcess.on("close", (code) => {
-    console.log(`NodeCG process exited with code ${code}`);
-  });
-});
-
-app.on("window-all-closed", function () {
-  if (process.platform !== "darwin") app.quit();
-});
-
-app.on("activate", function () {
-  if (mainWindow === null) createWindow();
-});
+} catch (err) {
+  mainLog.error(err);
+}

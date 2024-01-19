@@ -3,3 +3,5 @@
 /component.json
 /npm-shrinkwrap.json
 *.slp
+
+/dist
