@@ -46,6 +46,7 @@
     "@vaadin/vaadin-text-field": "^20.0.5",
     "@vinceau/slp-realtime": "https://github.com/dragonbane0/slp-realtime/tarball/ade1ce10fd7fe58e91d4d951d361c5ec55b3f9a1",
     "@webcomponents/webcomponentsjs": "^2.2.10",
+    "electron-log": "^5.0.3",
     "got": "^11.8.5",
     "lit": "^2.2.7",
     "nodecg": "^2.2.1",
